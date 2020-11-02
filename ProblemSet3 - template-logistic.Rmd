@@ -1,0 +1,98 @@
+---
+title: "Predict Vote Outcome of the 2020 American Federal Election with Logistic Regression"
+author: "Chixueyuan Wang 1003118538"
+date: "November 2, 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+# Loading in the cleaned survey Data
+survey_data <- read_csv("C:/Users/USer/Desktop/PS3/outputs/survey_data.csv")
+
+# Loading in the cleaned census Data
+census_data <- read_csv("C:/Users/USer/Desktop/PS3/outputs/census_data.csv")
+
+```
+
+
+# Model
+
+In this report I am going to predict the popular vote outcome of the 2020 American federal election. The final goal is to predict whether Donald Trump or Joe Biden will win the election. I will fit in a logistic model and employ a post-stratification technique based on that. In the following sub-sections I will describe the model specifics and the post-stratification calculation.
+
+
+## Model Specifics
+I will be fitting the age variables into a logistic regression model to model the proportion of voters who will vote for Donald Trump. This is a model with age as the single explanatory variable. Because I am doing the paper work on my own, I will only be using age and recorded it as a numeric variable, to model the whether an interviewee will vote for Donald Trump or not. The logistic regression model I am using is:
+
+$$ log(\frac{p}{1-p}) = \beta_0+\beta_1  x_{age} + \epsilon$$
+
+Where $p$ represents the probability of voters who will vote for Donald Trump, $1-p$ represents the probility of voters who choose to vote for Biden or choose "I don't know". $log(\frac{p}{1-p})$ is the log odds in this model. Similarly, $\beta_0$ represents the intercept in this model, which is the log odds in terms of voting for Donald Trump vs. not voting for him at age 0. Additionally, $\beta_1$ represents the slope of the model. So, for everyone one unit increase in age, we expect a $\beta_1$ increase in the log odds of the probability of voting for Donald Trump vs. not voting for him.
+
+```{r, include=TRUE}
+
+# Creating the Logistic Model
+model <- glm(vote_trump ~ age , 
+            data=survey_data, family= "binomial")
+
+# Model Results
+summary(model)
+
+
+```
+
+## Post-Stratification 
+
+In order to estimate the proportion of voters who will vote for Donald Trump I need to perform a post-stratification analysis. Post-stratification is a method which can divide the sample into different groups(cells) and then estimate the dependent variable for each cell. After that, I will aggregate the results by weighting them with the size of each group vs. the size of total sample.By using post-stratification, I can correct the results for predicting the non-probability based voting outcomes.
+Using the model described in the "Model Basics" section, I created different age bins, and I will estimate the proportion of voters in each of them. The portion of voters who support Donald Trump can be calculated by weighting each proportion estimate by the respective population size of that bin and sum those values and divide that by the entire population size. I choose age as the variable of interest because people may change their thoughts with the increase of their ages, people in different age groups may choose to support different leaders, based on the policies the party promised.
+
+```{r, include=TRUE}
+
+# Here I will perform the post-stratification calculation
+census_data$logodds_estimate <-
+  model %>%
+  predict(newdata = census_data)
+
+census_data$estimate <-
+  exp(census_data$logodds_estimate)/(1+exp(census_data$logodds_estimate))
+
+census_data %>%
+  mutate(alp_predict_prop = estimate*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+
+
+```
+
+
+# Results
+
+By the calculation through post-stratification method based on my logistic regression model, I estimate the portion of voters who will choose to support Donald Trump will be 37.45%. In addition, the logistic regression model indicates that the estimated slope parameter for age is about 0.0192.
+
+# Discussion
+
+In the previous sections, I created a logistic model and fit the age as numeric variables into it, because I make the vote outcome binary, which means that "1" would represent "vote for Donald Trump" and "0" means "not vote for Donald Trump". Then I performed the post-stratification method to calculate the estimated portion of people who will vote for Donald Trump.
+
+From the calculation, I got $$\hat{y}^{PS} = 0.3745$$. This means that based off the analysis above, Donald Trump may be less likely to beat Biden in terms of number of supporters, because about 37.45% of voters will support him while Biden may have a higher portion of supporters. Besides, the estimated slope parameter for age is 0.0192, the positive value of slope indicated that when people's age is increasing, they are more likely to choose Donald Trump as the leader.
+
+
+## Weaknesses
+
+As of people's responses for voting Trump or Biden, there are responses which indicated "I don't know". So there are actually three different responses, "Vote for Donald Trump", "vote for Joe Biden" and "I don't know". When people choose not to support Donald Trump, it is possible that they will not support Biden either. During my analysis, this factor was not taken into account. Consequently, even though Trump only got approximately 37.45% of voters as supporters, it is still possible that Biden does not hold more supporters than Trump, because there are still many people who have not decided which leader to support. 
+
+## Next Steps
+
+In the next steps, I can add more explanatory variables into my logistic regression model, such as “hispanic
+or not”, “sex” and “education” etc. With more predictors, the results may be much more accurate. Due
+to the time limit and individual work load, further analysis may be performed to improve the accuracy,
+including taking the “I don’t know” factor into account.
+
+# References
+
+1.Ruggles,S., Flood,S., Goeken,R., Grover,J.,Meyer,E., Pacas,J. and Sobek,M. IPUMS USA: Version 10.0 [dataset]. Minneapolis, MN: IPUMS, 2020. Retrieved from https://doi.org/10.18128/D010.V10.0
+
+2.Tausanovitch, Chris and Lynn Vavreck. 2020. Democracy Fund + UCLA Nationscape, October 10-17, 2019 (version 20200814). Retrieved from https://www.voterstudygroup.org/downloads?key=f8b63563-7925-4324-89f8-038b1121a673
+
+
